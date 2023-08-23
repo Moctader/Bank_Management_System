@@ -8,7 +8,7 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.views import View
 from django.http import HttpResponse
 from django.views.generic import CreateView, ListView
-from transactions.forms import DepositeForm, WithdrawForm, LoanRequestForm
+from transactions.forms import DepositForm, WithdrawForm, LoanRequestForm
 from transactions.models import Transection
 from django.utils import timezone
 from django.contrib import messages
@@ -22,8 +22,8 @@ from django.views import View
 
 # Create your views here.
 class TransectionCreateMixin(LoginRequiredMixin, CreateView):
-    template_name='transations/transaction_form.html' 
-    success_url=reverse_lazy('transection_report')
+    template_name='transactions/transaction_form.html' 
+    success_url=reverse_lazy('transaction_report')
     model=Transection
     title=''
     
@@ -41,29 +41,36 @@ class TransectionCreateMixin(LoginRequiredMixin, CreateView):
         })
         return context
 
-class DepositeMoneyView(TransectionCreateMixin):
-    form_class=DepositeForm
-    title='Deposit'
-    
+
+class DepositMoneyView(TransectionCreateMixin):
+    form_class = DepositForm
+    title = 'Deposit'
+
     def get_initial(self):
-        initial={'transection_type': DEPOSIT}
+        initial = {'transection_type': DEPOSIT}
         return initial
-    
+
     def form_valid(self, form):
-        amount=form.cleaned_data.get('amount')
-        account=self.request.user.account
-        if not account.initital_deposite_date: 
-            now=timezone.now()
-            account.initital_deposite_date=now
-        account.balance +=amount
+        amount = form.cleaned_data.get('amount')
+        account = self.request.user.account
+        # if not account.initial_deposit_date:
+        #     now = timezone.now()
+        #     account.initial_deposit_date = now
+        account.balance += amount 
         account.save(
-            update_fields=['balance']
+            update_fields=[
+                'balance'
+            ]
         )
-        
+
         messages.success(
             self.request,
-            f'{"{:,2f}".format(float(amount))} wad deposited in your account successfully'
+            f'{"{:,.2f}".format(float(amount))}$ was deposited to your account successfully'
         )
+
+        return super().form_valid(form)
+
+
 
 class WithdrwalMoneyView(TransectionCreateMixin):
     form_class=WithdrawForm
@@ -80,7 +87,7 @@ class WithdrwalMoneyView(TransectionCreateMixin):
         
         messages.success(
             self.request,
-            f'successfully withdrwan{"{:,2f}".format(float(amount))} from your account'
+            f'successfully withdrwan {"{:,.2f}".format(float(amount))} from your account'
             
         )
         return super().form_valid(form)
@@ -89,9 +96,11 @@ class LoanRequestView(TransectionCreateMixin):
     form_class=LoanRequestForm
     title='Request for loan'
     
+
     def get_initial(self):
-        initial={'transection_type':LOAN}
+        initial = {'transection_type': LOAN}
         return initial
+
     
     def form_valid(self, form):
         amount=form.cleaned_data.get('amount')
@@ -104,7 +113,7 @@ class LoanRequestView(TransectionCreateMixin):
         
         messages.success(
             self.request,
-            f'loan requested for {"{:, .2f}".format(float(amount))} submitted successfully'
+            f'loan requested for {"{:,.2f}".format(float(amount))}$ submitted successfully'
         )
         
         return super().form_valid(form)
@@ -115,23 +124,27 @@ class TransectionReportView(LoginRequiredMixin, ListView):
     form_data={}
     balance=0
     
-    def get_queryset(self) -> QuerySet[Any]:
+    def get_queryset(self):
         queryset= super().get_queryset().filter(
-            account=self.request.user.account
+            account= self.request.user.account
+
         )
         start_date_str=self.request.GET.get('start_date')
         end_date_str=self.request.GET.get('end_date')
        
         
         if start_date_str and end_date_str:
-            start_date=datetime.strptime(start_date_str, '%Y-%m-%d').date()
-            end_date=datetime.strptime(end_date_str, '%Y-%m-%d').date()
-            queryset=queryset.filter(timestamp_date_gte=start_date, timestamp_date_lte=end_date)
-            self.balance=Transection.objects.filter(
-                timestamp_date_gte=start_date, timestamp_date_lte=end_date
-            ).aggregate(sum('amount'))['amount__sum']
+            start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+            end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+            
+            queryset = queryset.filter(timestamp__date__gte=start_date, timestamp__date__lte=end_date)
+            self.balance = Transection.objects.filter(
+                timestamp__date__gte=start_date, timestamp__date__lte=end_date
+            ).aggregate(Sum('amount'))['amount__sum']
+
         else:
-            self.balance=self.request.user.account.balance
+            self.balance = self.request.user.account.balance
+
         return queryset.distinct()
     
     def get_context_data(self, **kwargs):
@@ -143,33 +156,34 @@ class TransectionReportView(LoginRequiredMixin, ListView):
 
 class PayLoanView(LoginRequiredMixin, View):
     def get(self, request, loan_id):
-        loan=get_object_or_404(Transection, id=loan_id) # How it works
+        loan=get_object_or_404(Transection, id=loan_id) 
         print(loan)
         
         if loan.loan_approve:
             user_account=loan.account
-        
-        if loan.amount<user_account.balance:
-            user_account.balance -=loan.amount
-            loan.balance_after_transection=user_account.balance
-            user_account.save()
-            loan.loan_approve=True
-            loan.transection_type=LOAN_PAID
-            loan.save()
-            return redirect('')
-        else:
-            messages.error(
-                self.request, 
-                f'loan amount is greater than available balance'
-            )        
+            
+            if loan.amount<user_account.balance:
+                user_account.balance -=loan.amount
+                loan.balance_after_transection=user_account.balance
+                user_account.save()
+                loan.loan_approve=True
+                loan.transection_type=LOAN_PAID
+                loan.save()
+                return redirect('loan_list')
+            else:
+                messages.error(
+                    self.request, 
+                    f'loan amount is greater than available balance'
+                )        
+        return redirect('transactions:loan_list')
 
 class LoanListView(LoginRequiredMixin, ListView):
     model=Transection
     template_name='transactions/loan_request.html'
-    context_object_name='loan'
+    context_object_name='loans'
     
     def get_queryset(self):
-        user_Account=self.request.user.account
-        queryset=Transection.objects.filter(account=user_Account, transection_type=3)
+        user_account=self.request.user.account
+        queryset=Transection.objects.filter(account=user_account, transection_type=3)
         print(queryset)
         return queryset

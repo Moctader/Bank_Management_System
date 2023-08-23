@@ -10,21 +10,23 @@ class TransectionForm(forms.ModelForm):
         self.account=kwargs.pop('account')
         super().__init__(*args, **kwargs)
         self.fields['transection_type'].disabled=True
-        self.fields['transection_type'].widget=forms.HiddenInput
+        self.fields['transection_type'].widget=forms.HiddenInput()
         
     def save(self, commit=True):
         self.instance.account=self.account
-        self.instance.balance_after_transection=self.account.balance  #likely accounts
+        self.instance.balance_after_transection=self.account.balance 
         return super().save() 
 
-class DepositeForm(TransectionForm):
+
+class DepositForm(TransectionForm):
     def clean_amount(self):
-        min_deposite=100
-        amount=self.cleaned_data.get('amount')
-        if min<amount:
+        min_deposit_amount = 100
+        amount = self.cleaned_data.get('amount')
+        if amount < min_deposit_amount:
             raise forms.ValidationError(
-                f'you need to deposte at least :{min_deposite}'
+                f'You need to deposit at least {min_deposit_amount} $'
             )
+
         return amount
     
 class WithdrawForm(TransectionForm):
@@ -36,22 +38,22 @@ class WithdrawForm(TransectionForm):
         max_withdraw=2000
         if amount<min_withdraw:
             raise forms.ValidationError(
-                f'you can withdraw at least : {min_withdraw}'
+                f'you can withdraw at least : {min_withdraw}$'
             )
             
         if amount>max_withdraw:
             raise forms.ValidationError(
-                f'you can withdraw at most : {max_withdraw}'
+                f'you can withdraw at most : {max_withdraw}§'
             )
             
         if amount>balance:
             raise forms.ValidationError(
-                f'you have {balance} in your account. you can not withdraw more than your account balance'
+                f'you have {balance}$ in your account. you can not withdraw more than your account balance'
                 
             )
         return amount
 
-class LoanRequestForm(Transection):
+class LoanRequestForm(TransectionForm):
     def clean_amount(self):
         amount = self.cleaned_data.get('amount')
         return amount

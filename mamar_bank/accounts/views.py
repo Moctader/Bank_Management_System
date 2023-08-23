@@ -17,14 +17,14 @@ class UserRegistrationView(FormView):
     def form_valid(self, form):
         print(form.cleaned_data)
         user=form.save()
-        login(self.request ,user)
+        #login(self.request ,user)
         print(user)
         return super().form_valid(form)
     
 class UserLoginView(LoginView):
     template_name = 'accounts/user_login.html'
     def get_success_url(self):
-        return reverse_lazy('home')
+        return reverse_lazy('deposit_money')
 
 class UserLogoutView(LogoutView):
     def get_success_url(self):
