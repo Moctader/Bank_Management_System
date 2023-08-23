@@ -94,7 +94,7 @@ class WithdrwalMoneyView(TransectionCreateMixin):
 
 class LoanRequestView(TransectionCreateMixin):
     form_class=LoanRequestForm
-    title='Request for loan'
+    title='Request For Loan'
     
 
     def get_initial(self):
